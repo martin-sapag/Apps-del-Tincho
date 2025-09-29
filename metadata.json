@@ -1,0 +1,5 @@
+{
+  "name": "Family Finance Tracker",
+  "description": "An application to register and track monthly family income and fixed expenses, with categorization, monthly reports, and AI-powered financial analysis.",
+  "requestFramePermissions": []
+}
