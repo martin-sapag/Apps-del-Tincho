@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Transaction, TransactionType, Category } from '../types';
+import { Transaction, TransactionType, Category, Goal } from '../types';
 import { XMarkIcon } from './icons';
 
 interface EditTransactionModalProps {
@@ -9,6 +9,7 @@ interface EditTransactionModalProps {
   transaction: Transaction | null;
   onUpdateTransaction: (transaction: Transaction) => void;
   categories: Category[];
+  goals: Goal[];
 }
 
 export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
@@ -17,6 +18,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   transaction,
   onUpdateTransaction,
   categories,
+  goals,
 }) => {
   const [formData, setFormData] = useState<Omit<Transaction, 'id' | 'currency'> & { currency?: 'ARS' | 'USD' } | null>(null);
 
@@ -44,7 +46,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   };
   
   const handleTypeChange = (newType: TransactionType) => {
-    setFormData(prev => prev ? { ...prev, type: newType, categoryId: '' } : null);
+    setFormData(prev => prev ? { ...prev, type: newType, categoryId: '', goalId: undefined } : null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -65,7 +67,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
 
     if (formData.type !== TransactionType.SAVING) {
       delete updatedTransaction.currency;
+      delete updatedTransaction.goalId;
+    } else {
+        if (formData.currency !== 'ARS' || !formData.goalId) {
+            delete updatedTransaction.goalId;
+        }
     }
+
 
     onUpdateTransaction(updatedTransaction);
   };
@@ -119,12 +127,25 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             </div>
             
             { formData.type === TransactionType.SAVING && (
-              <div>
-                <label htmlFor="edit-currency" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Moneda</label>
-                <select id="edit-currency" name="currency" value={formData.currency} onChange={handleChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-slate-800 dark:text-slate-200">
-                  <option value="ARS">Pesos (ARS)</option>
-                  <option value="USD">Dólares (USD)</option>
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="edit-currency" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Moneda</label>
+                  <select id="edit-currency" name="currency" value={formData.currency} onChange={handleChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-slate-800 dark:text-slate-200">
+                    <option value="ARS">Pesos (ARS)</option>
+                    <option value="USD">Dólares (USD)</option>
+                  </select>
+                </div>
+                {formData.currency === 'ARS' && goals.length > 0 && (
+                  <div>
+                    <label htmlFor="edit-goalId" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Asignar a Objetivo</label>
+                    <select id="edit-goalId" name="goalId" value={formData.goalId || ''} onChange={handleChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-slate-800 dark:text-slate-200">
+                      <option value="">No asignar</option>
+                      {goals.map(goal => (
+                        <option key={goal.id} value={goal.id}>{goal.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 

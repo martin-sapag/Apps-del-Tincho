@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
-import { Transaction, TransactionType, Category } from '../types';
+import { Transaction, TransactionType, Category, Goal } from '../types';
 import { PlusIcon } from './icons';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
   categories: Category[];
+  goals: Goal[];
 }
 
-export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransaction, categories }) => {
+export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransaction, categories, goals }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -16,6 +17,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
   const [categoryId, setCategoryId] = useState('');
   const [isHabitual, setIsHabitual] = useState(false);
   const [currency, setCurrency] = useState<'ARS' | 'USD'>('ARS');
+  const [goalId, setGoalId] = useState('');
 
   const filteredCategories = categories.filter(c => c.type === type);
 
@@ -37,6 +39,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
 
     if (type === TransactionType.SAVING) {
       newTransaction.currency = currency;
+      if (currency === 'ARS' && goalId) {
+        newTransaction.goalId = goalId;
+      }
     }
 
     onAddTransaction(newTransaction);
@@ -47,11 +52,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
     setCategoryId('');
     setIsHabitual(false);
     setCurrency('ARS');
+    setGoalId('');
   };
   
   const handleTypeChange = (newType: TransactionType) => {
     setType(newType);
     setCategoryId(''); // Reset category on type change
+    setGoalId('');
   };
 
   return (
@@ -109,12 +116,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
         </div>
 
         { type === TransactionType.SAVING && (
-          <div>
-            <label htmlFor="currency" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Moneda</label>
-            <select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value as 'ARS' | 'USD')} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-slate-800 dark:text-slate-200">
-              <option value="ARS">Pesos (ARS)</option>
-              <option value="USD">Dólares (USD)</option>
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="currency" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Moneda</label>
+              <select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value as 'ARS' | 'USD')} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-slate-800 dark:text-slate-200">
+                <option value="ARS">Pesos (ARS)</option>
+                <option value="USD">Dólares (USD)</option>
+              </select>
+            </div>
+            {currency === 'ARS' && goals.length > 0 && (
+              <div>
+                <label htmlFor="goalId" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Asignar a Objetivo</label>
+                <select id="goalId" value={goalId} onChange={(e) => setGoalId(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-slate-800 dark:text-slate-200">
+                  <option value="">No asignar</option>
+                  {goals.map(goal => (
+                    <option key={goal.id} value={goal.id}>{goal.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
 

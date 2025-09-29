@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Transaction, Category, TransactionType } from './types';
+import { Transaction, Category, TransactionType, Goal } from './types';
 import { DEFAULT_CATEGORIES, MONTH_NAMES_ES } from './constants';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Header } from './components/Header';
@@ -9,20 +9,24 @@ import { TransactionList } from './components/TransactionList';
 import { ReportModal } from './components/ReportModal';
 import { Notification } from './components/Notification';
 import { EditTransactionModal } from './components/EditTransactionModal';
+import { GoalModal } from './components/GoalModal';
+import { GoalsList } from './components/GoalsList';
 import { ChartBarIcon } from './components/icons';
 
 const App: React.FC = () => {
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
   const [categories] = useLocalStorage<Category[]>('categories', DEFAULT_CATEGORIES);
+  const [goals, setGoals] = useLocalStorage<Goal[]>('goals', []);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isReportModalOpen, setReportModalOpen] = useState(false);
   const [missingHabitualExpenses, setMissingHabitualExpenses] = useState<Transaction[]>([]);
   
-  // State for editing transactions
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [isGoalModalOpen, setGoalModalOpen] = useState(false);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
+  const formatCurrency = (amount: number, currency = 'ARS') => {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency }).format(amount);
   };
 
   const currentMonthTransactions = useMemo(() => {
@@ -42,6 +46,17 @@ const App: React.FC = () => {
     const savingsUSD = currentMonthTransactions.filter(t => t.type === TransactionType.SAVING && t.currency === 'USD').reduce((sum, t) => sum + t.amount, 0);
     return { totalIncome: income, totalExpense: expense, totalSavingsARS: savingsARS, totalSavingsUSD: savingsUSD, balance: income - expense };
   }, [currentMonthTransactions]);
+  
+  const goalProgress = useMemo(() => {
+    const progress: Record<string, number> = {};
+    goals.forEach(goal => {
+        const totalSaved = transactions
+            .filter(t => t.type === TransactionType.SAVING && t.goalId === goal.id && t.currency !== 'USD')
+            .reduce((sum, t) => sum + t.amount, 0);
+        progress[goal.id] = totalSaved;
+    });
+    return progress;
+  }, [transactions, goals]);
 
   const checkHabitualExpenses = useCallback(() => {
       const currentMonth = currentDate.getMonth();
@@ -91,7 +106,35 @@ const App: React.FC = () => {
       setTransactions(prev => 
           prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t)
       );
-      setEditingTransaction(null); // Close modal on update
+      setEditingTransaction(null);
+  };
+
+  const handleSaveGoal = (goal: Omit<Goal, 'id'> | Goal) => {
+    if ('id' in goal) { // Update
+        setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
+    } else { // Create
+        setGoals(prev => [...prev, { ...goal, id: crypto.randomUUID() }]);
+    }
+    setGoalModalOpen(false);
+    setEditingGoal(null);
+  };
+  
+  const handleDeleteGoal = (id: string) => {
+      if (window.confirm('¿Estás seguro de que quieres eliminar este objetivo? Se desasignarán los ahorros vinculados.')) {
+          setGoals(prev => prev.filter(g => g.id !== id));
+          // Unlink transactions from the deleted goal
+          setTransactions(prev => prev.map(t => t.goalId === id ? { ...t, goalId: undefined } : t));
+      }
+  };
+  
+  const openNewGoalModal = () => {
+      setEditingGoal(null);
+      setGoalModalOpen(true);
+  };
+
+  const openEditGoalModal = (goal: Goal) => {
+      setEditingGoal(goal);
+      setGoalModalOpen(true);
   };
 
   const changeMonth = (offset: number) => {
@@ -136,7 +179,7 @@ const App: React.FC = () => {
              <div className="bg-blue-100 dark:bg-blue-900/50 p-4 rounded-lg">
               <p className="text-sm text-blue-700 dark:text-blue-300">Ahorros del Mes</p>
               <p className="text-2xl font-semibold text-blue-800 dark:text-blue-200">{formatCurrency(totalSavingsARS)}</p>
-               {totalSavingsUSD > 0 && <p className="text-lg font-medium text-blue-600 dark:text-blue-400 mt-1">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD' }).format(totalSavingsUSD)}</p>}
+               {totalSavingsUSD > 0 && <p className="text-lg font-medium text-blue-600 dark:text-blue-400 mt-1">{formatCurrency(totalSavingsUSD, 'USD')}</p>}
             </div>
             <div className={`p-4 rounded-lg ${balance >= 0 ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'bg-orange-100 dark:bg-orange-900/50'}`}>
               <p className={`text-sm ${balance >= 0 ? 'text-indigo-700 dark:text-indigo-300' : 'text-orange-700 dark:text-orange-300'}`}>Balance</p>
@@ -148,18 +191,28 @@ const App: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           <div className="lg:col-span-2">
-            <TransactionForm onAddTransaction={handleAddTransaction} categories={categories} />
+            <TransactionForm onAddTransaction={handleAddTransaction} categories={categories} goals={goals} />
           </div>
           <div className="lg:col-span-3">
             <TransactionList 
               transactions={currentMonthTransactions} 
               categories={categories} 
+              goals={goals}
               onDeleteTransaction={handleDeleteTransaction}
               onEditTransaction={setEditingTransaction}
             />
           </div>
         </div>
+
+        <GoalsList 
+            goals={goals}
+            goalProgress={goalProgress}
+            onAddNewGoal={openNewGoalModal}
+            onEditGoal={openEditGoalModal}
+            onDeleteGoal={handleDeleteGoal}
+        />
       </main>
+
       <ReportModal 
         isOpen={isReportModalOpen} 
         onClose={() => setReportModalOpen(false)}
@@ -172,6 +225,13 @@ const App: React.FC = () => {
         transaction={editingTransaction}
         onUpdateTransaction={handleUpdateTransaction}
         categories={categories}
+        goals={goals}
+      />
+       <GoalModal
+        isOpen={isGoalModalOpen}
+        onClose={() => { setGoalModalOpen(false); setEditingGoal(null); }}
+        onSave={handleSaveGoal}
+        goal={editingGoal}
       />
     </div>
   );

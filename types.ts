@@ -11,6 +11,13 @@ export interface Category {
   type: TransactionType;
 }
 
+export interface Goal {
+  id: string;
+  name: string;
+  description: string;
+  targetAmount: number;
+}
+
 export interface Transaction {
   id:string;
   description: string;
@@ -20,4 +27,5 @@ export interface Transaction {
   type: TransactionType;
   isHabitual: boolean;
   currency?: 'ARS' | 'USD';
+  goalId?: string;
 }

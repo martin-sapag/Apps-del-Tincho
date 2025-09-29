@@ -1,11 +1,12 @@
 
 import React from 'react';
-import { Transaction, Category, TransactionType } from '../types';
-import { TrashIcon, PencilIcon } from './icons';
+import { Transaction, Category, TransactionType, Goal } from '../types';
+import { TrashIcon, PencilIcon, TrophyIcon } from './icons';
 
 interface TransactionListProps {
   transactions: Transaction[];
   categories: Category[];
+  goals: Goal[];
   onDeleteTransaction: (id: string) => void;
   onEditTransaction: (transaction: Transaction) => void;
 }
@@ -13,9 +14,10 @@ interface TransactionListProps {
 const TransactionItem: React.FC<{
   transaction: Transaction;
   category?: Category;
+  goal?: Goal;
   onDelete: (id: string) => void;
   onEdit: (transaction: Transaction) => void;
-}> = ({ transaction, category, onDelete, onEdit }) => {
+}> = ({ transaction, category, goal, onDelete, onEdit }) => {
     const isExpense = transaction.type === TransactionType.EXPENSE;
     const isSaving = transaction.type === TransactionType.SAVING;
 
@@ -32,10 +34,16 @@ const TransactionItem: React.FC<{
                 <div className={`w-2 h-12 rounded-full ${indicatorColor}`}></div>
                 <div>
                     <p className="font-semibold text-slate-800 dark:text-slate-100">{transaction.description}</p>
-                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center flex-wrap gap-2 text-sm text-slate-500 dark:text-slate-400">
                         <span>{new Date(transaction.date + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
                         <span className="text-slate-300 dark:text-slate-600">•</span>
                         <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs font-medium">{category?.name || 'Sin Categoría'}</span>
+                        {goal && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 rounded-full text-xs font-medium">
+                                <TrophyIcon className="w-3 h-3"/>
+                                {goal.name}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -61,8 +69,9 @@ const TransactionItem: React.FC<{
 };
 
 
-export const TransactionList: React.FC<TransactionListProps> = ({ transactions, categories, onDeleteTransaction, onEditTransaction }) => {
+export const TransactionList: React.FC<TransactionListProps> = ({ transactions, categories, goals, onDeleteTransaction, onEditTransaction }) => {
   const getCategory = (id: string) => categories.find(c => c.id === id);
+  const getGoal = (id?: string) => id ? goals.find(g => g.id === id) : undefined;
 
   return (
     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg mt-6">
@@ -70,7 +79,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       {transactions.length > 0 ? (
         <ul className="space-y-3">
           {transactions.map(t => (
-            <TransactionItem key={t.id} transaction={t} category={getCategory(t.categoryId)} onDelete={onDeleteTransaction} onEdit={onEditTransaction} />
+            <TransactionItem key={t.id} transaction={t} category={getCategory(t.categoryId)} goal={getGoal(t.goalId)} onDelete={onDeleteTransaction} onEdit={onEditTransaction} />
           ))}
         </ul>
       ) : (

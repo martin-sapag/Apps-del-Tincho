@@ -40,16 +40,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, trans
 
     const expensesByCategory = transactions
       .filter(t => t.type === TransactionType.EXPENSE)
-      // FIX: Explicitly type the accumulator for the reduce function to prevent type inference issues.
-      .reduce<Record<string, number>>((acc, t) => {
+      // FIX: Explicitly typing the accumulator in `reduce` to fix type inference issues.
+      .reduce((acc: Record<string, number>, t) => {
         const categoryName = categories.find(c => c.id === t.categoryId)?.name || 'Sin Categoría';
         acc[categoryName] = (acc[categoryName] || 0) + t.amount;
         return acc;
       }, {});
 
     const savingsByCategory = savingsTransactions
-        // FIX: Explicitly type the accumulator for the reduce function to prevent type inference issues.
-        .reduce<Record<string, { amount: number; currency: 'ARS' | 'USD' }>>((acc, t) => {
+        // FIX: Explicitly typing the accumulator in `reduce` to fix type inference issues.
+        .reduce((acc: Record<string, { amount: number; currency: 'ARS' | 'USD' }>, t) => {
             const categoryName = categories.find(c => c.id === t.categoryId)?.name || 'Sin Categoría';
             const currency = t.currency || 'ARS';
             const key = `${categoryName}_${currency}`;
