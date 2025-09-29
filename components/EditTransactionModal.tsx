@@ -35,13 +35,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
     }
   }, [transaction]);
 
+  // Fix: Correctly handle checkbox change event by improving type narrowing.
+  // The `checked` property is only available on `HTMLInputElement`, and the original
+  // type guard was not being correctly applied by TypeScript.
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+    const target = e.target;
+    const name = target.name;
     
-    if (type === 'checkbox' && e.target instanceof HTMLInputElement) {
-        setFormData(prev => prev ? { ...prev, [name]: e.target.checked } : null);
+    if (target instanceof HTMLInputElement && target.type === 'checkbox') {
+        setFormData(prev => prev ? { ...prev, [name]: target.checked } : null);
     } else {
-        setFormData(prev => prev ? { ...prev, [name]: value } : null);
+        setFormData(prev => prev ? { ...prev, [name]: target.value } : null);
     }
   };
   

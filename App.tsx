@@ -218,6 +218,7 @@ const App: React.FC = () => {
         onClose={() => setReportModalOpen(false)}
         transactions={currentMonthTransactions}
         categories={categories}
+        currentDate={currentDate}
       />
       <EditTransactionModal 
         isOpen={!!editingTransaction}

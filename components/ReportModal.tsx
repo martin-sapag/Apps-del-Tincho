@@ -1,14 +1,23 @@
-
 import React, { useState, useMemo } from 'react';
 import { Transaction, Category, TransactionType } from '../types';
-import { XMarkIcon, SparklesIcon } from './icons';
+import { XMarkIcon, SparklesIcon, DocumentArrowDownIcon } from './icons';
 import { analyzeFinancialsWithGemini } from '../services/geminiService';
+import { MONTH_NAMES_ES } from '../constants';
+
+// Add jspdf and html2canvas to the window object for TypeScript
+declare global {
+  interface Window {
+    jspdf: any;
+    html2canvas: any;
+  }
+}
 
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   transactions: Transaction[];
   categories: Category[];
+  currentDate: Date;
 }
 
 const formatCurrency = (amount: number, currency: string = 'ARS') => new Intl.NumberFormat('es-AR', { style: 'currency', currency }).format(amount);
@@ -25,9 +34,10 @@ const AnalysisDisplay: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, transactions, categories }) => {
+export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, transactions, categories, currentDate }) => {
   const [analysis, setAnalysis] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const reportData = useMemo(() => {
     const totalIncome = transactions.filter(t => t.type === TransactionType.INCOME).reduce((sum, t) => sum + t.amount, 0);
@@ -40,16 +50,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, trans
 
     const expensesByCategory = transactions
       .filter(t => t.type === TransactionType.EXPENSE)
-      // FIX: Explicitly typing the accumulator in `reduce` to fix type inference issues.
-      .reduce((acc: Record<string, number>, t) => {
+      // FIX: Cast the initial value of reduce to ensure correct type inference for expensesByCategory.
+      .reduce((acc, t) => {
         const categoryName = categories.find(c => c.id === t.categoryId)?.name || 'Sin Categoría';
         acc[categoryName] = (acc[categoryName] || 0) + t.amount;
         return acc;
-      }, {});
+      }, {} as Record<string, number>);
 
     const savingsByCategory = savingsTransactions
-        // FIX: Explicitly typing the accumulator in `reduce` to fix type inference issues.
-        .reduce((acc: Record<string, { amount: number; currency: 'ARS' | 'USD' }>, t) => {
+        // FIX: Cast the initial value of reduce to ensure correct type inference for savingsByCategory.
+        .reduce((acc, t) => {
             const categoryName = categories.find(c => c.id === t.categoryId)?.name || 'Sin Categoría';
             const currency = t.currency || 'ARS';
             const key = `${categoryName}_${currency}`;
@@ -58,7 +68,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, trans
             }
             acc[key].amount += t.amount;
             return acc;
-        }, {});
+        }, {} as Record<string, { amount: number; currency: 'ARS' | 'USD' }>);
 
     return { 
       totalIncome, 
@@ -92,20 +102,98 @@ export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, trans
     setAnalysis(result);
     setIsLoading(false);
   };
+
+  const handleExportPDF = () => {
+    const reportElement = document.getElementById('report-content');
+    if (!reportElement) return;
+
+    setIsExporting(true);
+
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const backgroundColor = isDarkMode ? '#1e293b' : '#f8fafc';
+
+    window.html2canvas(reportElement, {
+      scale: 2,
+      backgroundColor: backgroundColor,
+      onclone: (document) => {
+        const style = document.createElement('style');
+        style.innerHTML = '.no-print { display: none !important; }';
+        document.head.appendChild(style);
+        if (isDarkMode) {
+          document.documentElement.classList.add('dark');
+        }
+      },
+    }).then((canvas) => {
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf; // Use jsPDF from the window object
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const canvasAspectRatio = canvas.height / canvas.width;
+      const imgHeight = pdfWidth * canvasAspectRatio;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft > 0) {
+        position -= pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      
+      const monthName = MONTH_NAMES_ES[currentDate.getMonth()];
+      const year = currentDate.getFullYear();
+      pdf.save(`Reporte-Financiero-${monthName}-${year}.pdf`);
+      
+      setIsExporting(false);
+    }).catch(err => {
+        console.error("Error exporting to PDF:", err);
+        alert("Hubo un error al exportar el reporte a PDF.");
+        setIsExporting(false);
+    });
+  };
   
   if (!isOpen) return null;
 
   const { totalIncome, totalExpense, totalSavingsARS, totalSavingsUSD, balance, expensesByCategory, savingsByCategory } = reportData;
+  const monthName = MONTH_NAMES_ES[currentDate.getMonth()];
+  const year = currentDate.getFullYear();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
       <div className="bg-slate-50 dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto transform transition-all animate-fade-in-up">
-        <div className="p-6">
+        <div id="report-content" className="p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Reporte Mensual</h2>
-            <button onClick={onClose} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700">
-              <XMarkIcon className="w-6 h-6" />
-            </button>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Reporte Mensual - {monthName} {year}</h2>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleExportPDF} 
+                disabled={isExporting} 
+                className="no-print p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Exportar a PDF"
+              >
+                {isExporting ? (
+                  <svg className="animate-spin h-6 w-6 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <DocumentArrowDownIcon className="w-6 h-6" />
+                )}
+              </button>
+              <button onClick={onClose} className="no-print p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
@@ -185,7 +273,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, trans
                 {!analysis && !isLoading && (
                     <div className="text-center">
                         <p className="text-slate-500 dark:text-slate-400 mb-3">Obtén consejos personalizados sobre tu situación financiera.</p>
-                        <button onClick={handleAnalyze} disabled={isLoading} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors">
+                        <button onClick={handleAnalyze} disabled={isLoading} className="no-print inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors">
                             <SparklesIcon className="w-5 h-5"/>
                             Generar Análisis
                         </button>
