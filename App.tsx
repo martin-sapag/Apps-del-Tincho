@@ -149,9 +149,9 @@ const App: React.FC = () => {
   const currentYear = currentDate.getFullYear();
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex flex-col">
       <Header />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-grow w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-2">
             <button onClick={() => changeMonth(-1)} className="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700">&lt;</button>
@@ -212,6 +212,10 @@ const App: React.FC = () => {
             onDeleteGoal={handleDeleteGoal}
         />
       </main>
+
+      <footer className="w-full text-center py-4 text-sm text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800">
+        © {new Date().getFullYear()} mAIruba. Todos los derechos reservados.
+      </footer>
 
       <ReportModal 
         isOpen={isReportModalOpen} 
