@@ -1,14 +1,15 @@
 import streamlit as st
 import google.generativeai as genai
+import pandas as pd
+import io
 
-# 1. Configuración de la página (Título e icono de la pestaña)
-st.set_page_config(page_title="Finanzas IA", page_icon="💰")
+# 1. Configuración de página
+st.set_page_config(page_title="Gestión Financiera AI", page_icon="📊", layout="wide")
 
-# Título y descripción visible
-st.title("💰 Asistente de Finanzas Familiares")
-st.markdown("Ingresa tus datos mensuales y recibe una auditoría y consejos de ahorro personalizados con IA.")
+st.title("📊 Gestor Financiero Inteligente")
+st.markdown("Detalla tus ingresos y egresos en las tablas. La IA analizará los patrones y podrás exportar el reporte.")
 
-# 2. Configuración de Seguridad (API Key)
+# 2. Configuración API (Seguridad)
 try:
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -18,72 +19,121 @@ try:
 except Exception as e:
     st.error(f"Error de configuración: {e}")
 
-# Instanciamos el modelo rápido
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Modelo: Cambiamos a 'gemini-pro' para asegurar compatibilidad y evitar error 404
+model = genai.GenerativeModel('gemini-pro')
 
-# 3. Formulario de Datos (Inputs para el usuario)
-with st.container():
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🟢 Ingresos")
-        ingresos = st.number_input("Total Ingresos del Hogar ($)", min_value=0.0, step=100.0, format="%.2f")
-    
-    with col2:
-        st.subheader("🔴 Gastos")
-        gastos_fijos = st.number_input("Gastos Fijos (Alquiler, Luz, Internet)", min_value=0.0, step=100.0, format="%.2f")
-        gastos_variables = st.number_input("Gastos Variables (Super, Salidas, Otros)", min_value=0.0, step=100.0, format="%.2f")
+# 3. Inicialización de Datos (Session State)
+# Esto crea las tablas vacías si es la primera vez que entras
+if 'df_ingresos' not in st.session_state:
+    st.session_state.df_ingresos = pd.DataFrame(columns=["Descripción", "Categoría", "Monto", "Frecuencia"])
+if 'df_egresos' not in st.session_state:
+    st.session_state.df_egresos = pd.DataFrame(columns=["Descripción", "Categoría", "Monto", "Prioridad (Alta/Baja)"])
 
-    # Calculadora rápida automática
-    total_gastos = gastos_fijos + gastos_variables
-    balance = ingresos - total_gastos
-    
-    st.info(f"📊 **Balance Preliminar:** Ingresan **${ingresos}** - Salen **${total_gastos}** = Quedan **${balance}**")
+# 4. Columnas para las tablas
+col_izq, col_der = st.columns(2)
 
-    # Texto libre para contexto
-    objetivo = st.text_area("🎯 ¿Cuál es tu objetivo o preocupación principal?", placeholder="Ej: Queremos ahorrar para vacaciones, pero gastamos mucho en delivery. Tenemos una deuda de tarjeta de crédito...")
+with col_izq:
+    st.subheader("🟢 Ingresos")
+    # Tabla editable de Ingresos
+    st.session_state.df_ingresos = st.data_editor(
+        st.session_state.df_ingresos,
+        num_rows="dynamic", # Permite agregar filas
+        key="editor_ingresos",
+        column_config={
+            "Monto": st.column_config.NumberColumn(format="$%.2f"),
+            "Categoría": st.column_config.SelectboxColumn(options=["Salario", "Honorarios", "Rentas", "Otros"])
+        }
+    )
 
-# 4. El Cerebro (Botón de Acción)
-if st.button("🧠 Evaluar Finanzas con IA"):
-    if ingresos == 0:
-        st.warning("Por favor ingresa al menos los ingresos.")
-    else:
-        with st.spinner('Analizando patrones financieros...'):
-            try:
-                # Construimos el Prompt Financiero
-                prompt_finanzas = f"""
-                Actúa como un Asesor Financiero experto en economía familiar.
-                Analiza la siguiente situación financiera:
+with col_der:
+    st.subheader("🔴 Egresos / Gastos")
+    # Tabla editable de Egresos
+    st.session_state.df_egresos = st.data_editor(
+        st.session_state.df_egresos,
+        num_rows="dynamic",
+        key="editor_egresos",
+        column_config={
+            "Monto": st.column_config.NumberColumn(format="$%.2f"),
+            "Categoría": st.column_config.SelectboxColumn(options=["Vivienda", "Alimentación", "Salud", "Transporte", "Ocio", "Deudas"]),
+            "Prioridad (Alta/Baja)": st.column_config.CheckboxColumn(label="Es Vital?")
+        }
+    )
 
-                DATOS DEL MES:
-                - Ingresos Totales: ${ingresos}
-                - Gastos Fijos (Obligatorios): ${gastos_fijos}
-                - Gastos Variables (Estilo de vida): ${gastos_variables}
-                - Dinero restante (Cashflow): ${balance}
-                
-                CONTEXTO DEL USUARIO:
-                "{objetivo}"
+# 5. Cálculos en tiempo real
+total_ingresos = st.session_state.df_ingresos["Monto"].sum()
+total_egresos = st.session_state.df_egresos["Monto"].sum()
+balance = total_ingresos - total_egresos
 
-                TAREA:
-                Por favor genera un reporte breve y directo con:
-                1. **Diagnóstico**: ¿Está saludable la economía? (Usa emojis de semáforo).
-                2. **Regla 50/30/20**: Compara cómo gastan vs cómo DEBERÍAN gastar teóricamente.
-                3. **Plan de Acción**: 3 consejos concretos y numéricos para lograr su objetivo "{objetivo}".
-                
-                Usa formato Markdown, sé empático pero riguroso con los números.
-                """
+st.metric(label="Balance del Mes", value=f"${balance}", delta=f"Ahorro Potencial: {(balance/total_ingresos)*100 if total_ingresos > 0 else 0:.1f}%")
 
-                # Llamada a Gemini
-                response = model.generate_content(prompt_finanzas)
-                
-                # Resultado
-                st.success("Reporte Generado:")
-                st.markdown(response.text)
-                
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-# Footer
+# 6. El Cerebro (Botón de IA)
 st.divider()
-st.caption("Herramienta de evaluación financiera asistida por Google Gemini")
-st.caption("Creado por Martín Sapag usando Streamlit & Google AI")
+col_ia, col_export = st.columns([2, 1])
+
+analisis_ia = ""
+
+with col_ia:
+    if st.button("🧠 Auditar Finanzas con IA"):
+        if total_ingresos == 0 and total_egresos == 0:
+            st.warning("Carga algunos datos en las tablas primero.")
+        else:
+            with st.spinner('Gemini está analizando cada gasto...'):
+                try:
+                    # Convertimos las tablas a texto para que la IA las lea
+                    csv_ingresos = st.session_state.df_ingresos.to_csv(index=False)
+                    csv_egresos = st.session_state.df_egresos.to_csv(index=False)
+
+                    prompt = f"""
+                    Actúa como Analista Financiero Senior. Analiza los siguientes datos:
+                    
+                    TABLA INGRESOS:
+                    {csv_ingresos}
+                    
+                    TABLA GASTOS:
+                    {csv_egresos}
+                    
+                    BALANCE FINAL: ${balance}
+
+                    Por favor, entrega un reporte estructurado:
+                    1. 🩺 **Diagnóstico**: Detecta patrones peligrosos en los gastos.
+                    2. ✂️ **Oportunidades de Recorte**: Indica qué gastos NO vitales se pueden reducir.
+                    3. 📈 **Proyección**: Si siguen así, ¿qué pasará en 6 meses?
+                    4. 💡 **Consejo experto**: Una acción concreta para mejorar este mes.
+                    """
+                    
+                    response = model.generate_content(prompt)
+                    analisis_ia = response.text
+                    st.markdown(analisis_ia)
+                    
+                    # Guardamos el análisis para poder exportarlo
+                    st.session_state['ultimo_analisis'] = analisis_ia
+
+                except Exception as e:
+                    st.error(f"Error de IA: {e}")
+
+# 7. Botón de Exportar (Excel)
+with col_export:
+    st.write("### 📥 Descargar")
+    if st.button("Preparar Archivo Excel"):
+        # Crear un buffer en memoria
+        output = io.BytesIO()
+        writer = pd.ExcelWriter(output, engine='xlsxwriter')
+        
+        # Escribir las hojas
+        st.session_state.df_ingresos.to_excel(writer, sheet_name='Ingresos', index=False)
+        st.session_state.df_egresos.to_excel(writer, sheet_name='Gastos', index=False)
+        
+        # Si hay análisis, agregarlo en una hoja aparte
+        if 'ultimo_analisis' in st.session_state:
+            df_analisis = pd.DataFrame([st.session_state['ultimo_analisis']], columns=["Análisis IA"])
+            df_analisis.to_excel(writer, sheet_name='Auditoria_IA', index=False)
+            
+        writer.close()
+        processed_data = output.getvalue()
+        
+        st.download_button(
+            label="Descargar Reporte Excel (.xlsx)",
+            data=processed_data,
+            file_name="Reporte_Finanzas.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
