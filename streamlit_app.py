@@ -85,5 +85,5 @@ if st.button("🧠 Evaluar Finanzas con IA"):
 
 # Footer
 st.divider()
-st.caption("Herramienta de evaluación financiera asistida por Google Gemini")divider()
+st.caption("Herramienta de evaluación financiera asistida por Google Gemini")
 st.caption("Creado por Martín Sapag usando Streamlit & Google AI")
